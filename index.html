@@ -271,9 +271,17 @@ function parseConfig(txt){
   const o={};txt.replace(/(\w+)\s*:\s*["'`]([^"'`]+)["'`]/g,(_,k,v)=>{o[k]=v});
   return o.apiKey&&o.projectId?o:null;
 }
-function shareLink(){const c=fbCfg();if(!c)return'';return location.origin+location.pathname+'#pridat='+btoa(unescape(encodeURIComponent(JSON.stringify(c))))}
+function shareLink(){const c=fbCfg();if(!c)return'';return location.origin+location.pathname+'#pridat='+c.fam}
 const standalone=()=>navigator.standalone===true||matchMedia('(display-mode: standalone)').matches;
-function decodeInvite(txt){const m=String(txt||'').match(/pridat=([A-Za-z0-9+/=_-]+)/);if(!m)return null;try{const c=JSON.parse(decodeURIComponent(escape(atob(m[1]))));return c&&c.config&&c.fam?c:null}catch(e){return null}}
+function decodeInvite(txt){
+  let t=String(txt||'').trim();
+  for(let i=0;i<3;i++){try{const d=decodeURIComponent(t);if(d===t)break;t=d}catch(e){break}}
+  const m=t.match(/pridat=([A-Za-z0-9+/=_ -]{40,})/);
+  if(m){try{const c=JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/ /g,'+')))));if(c&&c.config&&c.fam)return c}catch(e){}}
+  const k=t.match(/pridat=([\w-]{12,40})/)||t.match(/\b(rodina-[\w-]{6,40})\b/i)||t.match(/^([\w-]{12,40})$/);
+  if(k)return{config:DEFAULT_CFG,fam:k[1]};
+  return null;
+}
 let joinHint=false;
 function checkJoin(){
   if(!/pridat=/.test(location.hash))return;
@@ -284,8 +292,8 @@ function checkJoin(){
   history.replaceState(null,'',location.pathname);
 }
 function joinByPaste(){
-  const t=prompt('Vlož pozývací odkaz, ktorý ti poslal člen rodiny:');if(!t)return;
-  const c=decodeInvite(t);if(!c){alert('Toto nie je platný pozývací odkaz. Skopíruj celý odkaz zo správy.');return}
+  const t=prompt('Vlož kód rodiny alebo pozývací odkaz (napr. rodina-k3j9x2ab):');if(!t)return;
+  const c=decodeInvite(t);if(!c){alert('Kód som nerozpoznal. Napíš ho presne tak, ako je v správe – napr. rodina-k3j9x2ab (aspoň 12 znakov).');return}
   localStorage.setItem('dm_fb',JSON.stringify(c));toast('Pripájam k rodine…');startSync();render();
 }
 
@@ -430,7 +438,7 @@ function vJoinHint(){
   return `<div class="welcome"><div class="logo">📲</div><h1>Ešte jeden krok</h1><p class="muted">Pozvánka do rodinnej apky funguje až v apke na ploche.</p></div>
   <div class="card"><ol style="padding-left:20px;margin:0;line-height:1.6">
   <li>Dole klikni na <b>Zdieľať</b> (štvorec so šípkou).</li><li>Vyber <b>Pridať na plochu</b> → <b>Pridať</b>.</li><li>Otvor apku <b>Domácnosť</b> z plochy.</li>
-  <li>Ak sa nepripojí sama: <b>Mám pozývací odkaz</b> a vlož odkaz zo správy (podrž na ňom prst → Kopírovať).</li></ol></div>`;
+  <li>Ak sa nepripojí sama: <b>Mám pozývací odkaz</b> a napíš kód rodiny zo správy.</li></ol></div>`;
 }
 function vWho(){
   return `<div class="welcome" style="padding-top:40px"><div class="logo">👋</div><h1>Kto si?</h1><p class="muted">Vyber sa zo zoznamu členov rodiny.</p></div>
@@ -784,10 +792,10 @@ function vSettings(){
   h+=`<div class="sect">Zdieľanie s rodinou</div>`;
   if(c){
     h+=`<div class="grp"><div class="row"><div class="main"><div class="t"><span class="status ${sync.st==='ok'?'ok':sync.st==='err'?'err':'wait'}">${sync.st==='ok'?'Pripojené':sync.st==='err'?'Chyba':'Pripájam…'}</span></div><div class="s">${esc(sync.msg)}</div></div></div>
-    <div class="row"><div class="main"><div class="t">Kód rodiny</div><div class="s" style="font-family:ui-monospace,Menlo,monospace">${esc(c.fam)}</div></div></div>
+    <div class="row"><div class="main"><div class="t">Kód rodiny</div><div class="s" style="font-family:ui-monospace,Menlo,monospace;font-size:17px;color:var(--text)">${esc(c.fam)}</div></div><button class="btn g" data-a="copyFam">Kopírovať</button></div>
     <button class="row chev" data-a="syncShare"><div class="ic" style="background:var(--green)">📲</div><div class="main"><div class="t">Pozvať člena rodiny</div><div class="s">Pošli odkaz cez WhatsApp / SMS</div></div></button>
     <button class="row" data-a="syncOff"><div class="main"><div class="t" style="color:var(--red)">Odpojiť toto zariadenie</div></div></button></div>
-    <p class="hint">Kto má pozývací odkaz, vidí dáta rodiny. Posielaj ho len členom rodiny.</p>`;
+    <p class="hint">Kód rodiny funguje ako heslo – kto ho má, vidí dáta rodiny. Posielaj ho len členom rodiny.</p>`;
   }else{
     h+=`<div class="card small">Databáza rodiny (Firebase projekt <b>domacnost</b>) je už nastavená. Stačí kliknúť na <b>Pripojiť a zdieľať</b> – urob to na zariadení, kde si zadal členov rodiny.</div>
     <div class="grp" style="margin-top:14px">
@@ -829,6 +837,7 @@ const A={
   seg:e=>{S.seg[e.dataset.g]=e.dataset.v;render()},
   goSettings:e=>{if(!L('members').length){const n=prompt('Najprv zadaj svoje meno:');if(!n)return;const m=put('members',{name:n.trim(),emoji:'',color:COLORS[0][0]},true);me=m.id;localStorage.setItem('dm_me',me)}S.tab='more';S.sub='settings';render()},
   joinPaste:joinByPaste,
+  copyFam:()=>copy(fbCfg().fam,'Kód rodiny skopírovaný'),
   closeSheet:closeSheet,sheetSave:()=>sheetSave&&sheetSave(),sheetDel:()=>sheetDel&&sheetDel(),
   chipT:e=>e.classList.toggle('on'),
   welcome:()=>{const n=$('#w_name').value.trim();if(!n){toast('Zadaj meno');return}const m=put('members',{name:n,emoji:$('#w_emoji').value.trim(),color:COLORS[0][0]},true);me=m.id;localStorage.setItem('dm_me',me);render();toast('Vitaj, '+n+'! Pridaj ďalších členov vo Viac → Členovia.')},
@@ -898,7 +907,7 @@ const A={
   syncConnect:()=>{const cfg=DEFAULT_CFG;const fam=$('#s_fam').value.trim().replace(/[^\w-]/g,'');
     if(!cfg){toast('Nerozpoznal som firebaseConfig – skopíruj celý blok');return}if(fam.length<12){toast('Kód rodiny musí mať aspoň 12 znakov');return}
     localStorage.setItem('dm_fb',JSON.stringify({config:cfg,fam,name:meta().famName||''}));startSync()},
-  syncShare:()=>{const c=fbCfg();c.name=meta().famName||'';localStorage.setItem('dm_fb',JSON.stringify(c));const link=shareLink();const txt='Pridaj sa do našej rodinnej apky Domácnosť 🏡\n1) Otvor v Safari '+location.origin+location.pathname+' a daj Zdieľať → Pridať na plochu.\n2) Otvor apku z plochy → Mám pozývací odkaz → vlož tento odkaz:\n'+link;
+  syncShare:()=>{const c=fbCfg();c.name=meta().famName||'';localStorage.setItem('dm_fb',JSON.stringify(c));const link=shareLink();const txt='Pridaj sa do našej rodinnej apky Domácnosť 🏡\n1) Otvor v Safari '+location.origin+location.pathname+' a daj Zdieľať → Pridať na plochu.\n2) Otvor apku z plochy → Mám pozývací odkaz → napíš kód rodiny:\n'+c.fam;
     if(navigator.share)navigator.share({title:'Domácnosť',text:txt}).catch(()=>{});else{copy(link,'Odkaz skopírovaný');window.open('https://wa.me/?text='+encodeURIComponent(txt),'_blank')}},
   syncOff:()=>{if(!confirm('Odpojiť toto zariadenie od rodiny? Dáta ostanú v tomto zariadení aj u ostatných.'))return;localStorage.removeItem('dm_fb');location.reload()},
   exportJ:()=>{const data={app:'domacnost',v:1,at:new Date().toISOString()};COLS.forEach(c=>data[c]=L(c));const b=new Blob([JSON.stringify(data,null,1)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='domacnost-zaloha-'+today()+'.json';document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1000)},
