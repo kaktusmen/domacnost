@@ -552,6 +552,7 @@ function vGift(){
     const g=L('gifts').filter(x=>x.for===me&&!x.secret);
     h+=`<p class="hint">Napíš, čo by si si želal. Ostatní uvidia, čo kupujú – ty nie, aby to bolo prekvapenie. 🤫</p>`;
     OCC.forEach(o=>{const it=g.filter(x=>(x.occ||'Iné')===o);if(!it.length)return;h+=`<div class="sect">${o}</div><div class="grp">${it.map(x=>giftRow(x,true)).join('')}</div>`});
+    if(g.length)h+=`<div style="margin-top:18px"><button class="btn big" style="background:#b3122a" data-a="letterFromWishes">✉️ Poslať moje želania Ježiškovi</button></div><p class="hint">Z tvojich vianočných želaní sa pripraví list – pred odoslaním ho môžeš upraviť.</p>`;
     if(!g.length)h+=`<div class="card empty" style="margin-top:14px">🎁 Zatiaľ žiadne želania.<br><button class="btn" style="margin-top:10px" data-a="giftNew">Pridať želanie</button></div>`;
   }else if(S.seg.gift==='others'){
     h+=`<p class="hint">Rezervuj darček („Kúpim ja“), aby ste nekúpili to isté dvakrát. Obdarovaný rezervácie ani tajné nápady nevidí.</p>`;
@@ -576,6 +577,8 @@ function giftRow(x,own){
   }
   return `<div class="row gift ${x.bought&&!own?'done':''}"><button class="main" style="text-align:left" data-a="giftEdit" data-id="${x.id}"><div class="t">${esc(x.text)}</div><div class="s">${x.secret?'💡 Tajný nápad od '+esc(mName(x.by))+' · ':''}${x.price?esc(eur(x.price))+' · ':''}${esc(x.occ||'')}${x.note?' · '+esc(x.note):''}</div></button>${u?`<a href="${esc(u)}" target="_blank" rel="noopener" class="pill blue">🔗</a>`:''}${st}</div>`;
 }
+function myWishes(){const g=L('gifts').filter(x=>x.for===me&&!x.secret);const v=g.filter(x=>(x.occ||'')==='Vianoce');return v.length?v:g}
+function wishLetter(){const w=myWishes();return 'Milý Ježiško,\n\ntento rok som sa veľmi snažil(a) a želám si:\n'+w.map(x=>'– '+x.text).join('\n')+'\n\nĎakujem a teším sa na Vianoce!\n'+mName(me)}
 function vSanta(){
   const t=today();let xm=t.slice(0,4)+'-12-24';if(t>xm)xm=(Number(t.slice(0,4))+1)+'-12-24';const n=daysTo(xm);
   let flakes='';for(let i=0;i<18;i++)flakes+=`<i style="left:${(i*37)%100}%;font-size:${10+(i*7)%12}px;animation-duration:${5+(i*3)%7}s;animation-delay:-${(i*1.3)%7}s">❄</i>`;
@@ -924,13 +927,16 @@ const A={
   giftRes:e=>{const g=L('gifts').find(x=>x.id===e.dataset.id);if(g){if(g.resBy&&g.resBy!==me){toast('Už to kupuje '+mName(g.resBy));return}put('gifts',{...g,resBy:me});toast('Rezervované pre teba 🎁')}},
   giftBought:e=>{const g=L('gifts').find(x=>x.id===e.dataset.id);if(g)put('gifts',{...g,bought:true,resBy:me})},
   // Ježiško
-  letterNew:()=>openSheet('List Ježiškovi',`<textarea class="paper" id="l_text" placeholder="Milý Ježiško,&#10;&#10;tento rok som bol(a) veľmi dobrý(á) a želám si…" autofocus></textarea>`,{save:()=>{const t=$('#l_text').value.trim();if(!t){toast('Napíš list');return}put('letters',{from:me,text:t,ts:Date.now(),read:false,reply:''});closeSheet();santaFly();setTimeout(()=>toast('List letí k Ježiškovi! ✨'),600)},saveLabel:'Odoslať ✉️'}),
+  letterNew:(e,pre)=>openSheet('List Ježiškovi',`<textarea class="paper" id="l_text" placeholder="Milý Ježiško,&#10;&#10;tento rok som bol(a) veľmi dobrý(á) a želám si…" autofocus>${esc(pre||'')}</textarea>${myWishes().length?'<div style="margin-top:10px"><button class="btn g" data-a="letterInsWishes">🎁 Vložiť moje želania zo zoznamu</button></div>':''}`,{save:()=>{const t=$('#l_text').value.trim();if(!t){toast('Napíš list');return}put('letters',{from:me,text:t,ts:Date.now(),read:false,reply:''});closeSheet();santaFly();setTimeout(()=>toast('List letí k Ježiškovi! ✨'),600)},saveLabel:'Odoslať ✉️'}),
+  letterFromWishes:()=>A.letterNew(null,wishLetter()),
+  letterInsWishes:()=>{const t=$('#l_text');if(!t)return;const list=myWishes().map(x=>'– '+x.text).join('\n');t.value=t.value.trim()?t.value.replace(/\s*$/,'')+'\n\nŽelám si:\n'+list:wishLetter();t.focus()},
   letterRead:e=>{const l=L('letters').find(x=>x.id===e.dataset.id);if(l)put('letters',{...l,read:true})},
   letterReply:e=>{const l=L('letters').find(x=>x.id===e.dataset.id);if(!l)return;openSheet('Odpoveď od Ježiška',`<p class="hint" style="margin:0 0 10px">${esc(mName(l.from))} uvidí odpoveď pod svojím listom.</p><textarea class="paper" id="l_rep" style="min-height:180px" autofocus>${esc(l.reply||'Milý/á '+mName(l.from)+',\nďakujem za krásny list. ')}</textarea>`,{save:()=>{put('letters',{...l,reply:$('#l_rep').value.trim(),read:true});closeSheet();toast('Odpoveď odoslaná 🎅')},saveLabel:'Odoslať'})},
   letterWish:e=>{const l=L('letters').find(x=>x.id===e.dataset.id);if(!l)return;
-    const lines=l.text.split(/\n|,|;/).map(s=>s.replace(/^[\s\-–•*\d.)]+/,'').replace(/^(a\s+)?(prosím\s+)?(veľmi\s+)?(si\s+)?(želám|želal[a]?|chcem|chcel[a]?|prial[a]?|prajem)(\s+by\s+som)?(\s+si)?(\s+(by\s+som|veľmi))?[\s:,]*/i,'').trim()).filter(s=>s.length>1&&s.length<80&&!/^(milý|ahoj|tvoj|tvoja|ďakujem|s láskou)/i.test(s));
+    let lines=l.text.split(/\n|,|;/).map(s=>s.replace(/^[\s\-–•*\d.)]+/,'').replace(/^(a\s+)?(prosím\s+)?(veľmi\s+)?(si\s+)?(želám|želal[a]?|chcem|chcel[a]?|prial[a]?|prajem)(\s+by\s+som)?(\s+si)?(\s+(by\s+som|veľmi))?[\s:,]*/i,'').trim()).filter(s=>s.length>1&&s.length<80&&!/^(milý|milá|ahoj|tvoj|tvoja|ďakujem|s láskou|tento rok|pekne|veľa)/i.test(s)&&!/:\s*$/.test(s)&&s.toLowerCase()!==mName(l.from).toLowerCase());
+    {const bul=l.text.split('\n').filter(x=>/^\s*[-–•*]/.test(x)).map(x=>x.replace(/^[\s\-–•*]+/,'').trim());if(bul.length>=1){lines.length=0;bul.forEach(x=>lines.push(x))}}
     openSheet('Pridať do želaní',`<p class="hint" style="margin:0 0 10px">Vyber, čo pridať do želaní – ${esc(mName(l.from))}:</p><div class="grp">${lines.map((s,i)=>`<label class="frow"><span style="flex:1;min-width:0">${esc(s)}</span><input type="checkbox" class="sw lw" data-i="${i}" checked></label>`).join('')||'<div class="empty">Nenašiel som jednotlivé želania.</div>'}</div>`,
-    {save:()=>{let n=0;document.querySelectorAll('.sw.lw:checked').forEach(c=>{put('gifts',{for:l.from,by:l.from,secret:false,occ:'Vianoce',text:lines[c.dataset.i]},true);n++});closeSheet();render();toast('Pridané do želaní: '+n)},saveLabel:'Pridať'})},
+    {save:()=>{let n=0;const ex=new Set(L('gifts').filter(g=>g.for===l.from).map(g=>g.text.toLowerCase()));document.querySelectorAll('.sw.lw:checked').forEach(c=>{if(ex.has(lines[c.dataset.i].toLowerCase()))return;put('gifts',{for:l.from,by:l.from,secret:false,occ:'Vianoce',text:lines[c.dataset.i]},true);n++});closeSheet();render();toast('Pridané do želaní: '+n)},saveLabel:'Pridať'})},
   letterDel:e=>{if(confirm('Vymazať list?'))del('letters',e.dataset.id)},
   // nastavenia
   famName:()=>form('Názov rodiny',[{k:'famName',l:'Názov',ph:'napr. Rodina Novákových'}],meta(),o=>put('meta',{...meta(),famName:o.famName})),
