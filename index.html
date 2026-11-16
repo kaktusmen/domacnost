@@ -547,35 +547,40 @@ function markNotesRead(){
 const OCC=['Vianoce','Narodeniny','Meniny','Iné'];
 function vGift(){
   let h=hdr('Darčeky','',S.seg.gift==='mine'?plus('giftNew'):'');
-  h+=seg('gift',[['mine','Moje želania'],['others','Pre ostatných'],['santa','🎅 Ježiško']]);
+  h+=seg('gift',[['mine','Čo chcem ja'],['others','Vybrať darček'],['santa','🎅 Ježiško']]);
   if(S.seg.gift==='mine'){
     const g=L('gifts').filter(x=>x.for===me&&!x.secret);
-    h+=`<p class="hint">Napíš, čo by si si želal. Ostatní uvidia, čo kupujú – ty nie, aby to bolo prekvapenie. 🤫</p>`;
+    h+=`<div class="addbar"><input id="giftIn" placeholder="Čo by si chcel(a)?" enterkeyhint="done" autocomplete="off"><button data-a="giftQuick">＋</button></div>
+    <p class="hint">Napíš, čo chceš. Ostatní členovia rodiny si zo zoznamu vyberú, čo ti kúpia. Ty neuvidíš, kto čo kupuje – nech je to prekvapenie. 🤫 Ťuknutím na želanie doplníš cenu, odkaz na e-shop či veľkosť.</p>`;
     OCC.forEach(o=>{const it=g.filter(x=>(x.occ||'Iné')===o);if(!it.length)return;h+=`<div class="sect">${o}</div><div class="grp">${it.map(x=>giftRow(x,true)).join('')}</div>`});
     if(g.length)h+=`<div style="margin-top:18px"><button class="btn big" style="background:#b3122a" data-a="letterFromWishes">✉️ Poslať moje želania Ježiškovi</button></div><p class="hint">Z tvojich vianočných želaní sa pripraví list – pred odoslaním ho môžeš upraviť.</p>`;
     if(!g.length)h+=`<div class="card empty" style="margin-top:14px">🎁 Zatiaľ žiadne želania.<br><button class="btn" style="margin-top:10px" data-a="giftNew">Pridať želanie</button></div>`;
   }else if(S.seg.gift==='others'){
-    h+=`<p class="hint">Rezervuj darček („Kúpim ja“), aby ste nekúpili to isté dvakrát. Obdarovaný rezervácie ani tajné nápady nevidí.</p>`;
+    h+=`<p class="hint">Vyber, čo komu kúpiš – klikni na <b>Kúpim ja</b>. Ostatní uvidia, že to už kupuješ, a nekúpia to isté. Obdarovaný to nevidí.</p>`;
+    const mine=L('gifts').filter(x=>x.resBy===me&&x.for!==me);
+    if(mine.length){const tot=mine.reduce((a,x)=>a+num(x.price),0);
+      h+=`<div class="sect">🛍️ Čo kupujem ja (${mine.filter(x=>!x.bought).length} ostáva)${tot?'<span>'+eur(tot)+'</span>':''}</div><div class="grp">${mine.sort((a,b)=>(a.bought?1:0)-(b.bought?1:0)).map(x=>giftRow(x,false,true)).join('')}</div>`}
     L('members').filter(m=>m.id!==me).forEach(m=>{
       const it=L('gifts').filter(x=>x.for===m.id&&!(x.secret&&x.by===m.id));
       const nb=m.bday?daysTo(nextYearly(m.bday)):null;
-      h+=`<div class="sect"><span>${mTag(m.id,1)} ${esc(m.name)}${nb!=null?` · 🎂 o ${nb} d`:''}</span><button data-a="giftIdea" data-id="${m.id}">＋ Nápad</button></div><div class="grp">${it.length?it.sort((a,b)=>(a.bought?1:0)-(b.bought?1:0)).map(x=>giftRow(x,false)).join(''):'<div class="empty">Zatiaľ bez želaní a nápadov.</div>'}</div>`;
+      const free=it.filter(x=>!x.resBy&&!x.bought).length;
+      h+=`<div class="sect"><span>${mTag(m.id,1)} ${esc(m.name)}${nb!=null?` · 🎂 o ${nb} d`:''}${it.length?' · '+free+' voľných':''}</span><button data-a="giftIdea" data-id="${m.id}">＋ Tajný nápad</button></div><div class="grp">${it.length?it.sort((a,b)=>((a.resBy||a.bought)?1:0)-((b.resBy||b.bought)?1:0)||(a.secret?1:0)-(b.secret?1:0)).map(x=>giftRow(x,false)).join(''):`<div class="empty">${esc(m.name)} si zatiaľ nič nenapísal(a).</div>`}</div>`;
     });
     if(L('members').length<2)h+=`<div class="card empty" style="margin-top:14px">Pridaj členov rodiny vo Viac → Členovia rodiny.</div>`;
   }else h+=vSanta();
   return h;
 }
 function nextYearly(d){const t=today();let n=t.slice(0,4)+d.slice(4);if(n<t)n=(Number(t.slice(0,4))+1)+d.slice(4);return n}
-function giftRow(x,own){
+function giftRow(x,own,showFor){
   const u=safeUrl(x.link);
   let st='';
   if(!own){
-    if(x.bought)st=`<span class="reserved">✓ Kúpené${x.resBy?' ('+esc(mName(x.resBy))+')':''}</span>`;
+    if(x.bought)st=`<span class="reserved">✓ Kúpené${x.resBy&&x.resBy!==me?' ('+esc(mName(x.resBy))+')':''}</span>`;
     else if(x.resBy===me)st=`<button class="btn green" data-a="giftBought" data-id="${x.id}">Kúpené ✓</button>`;
-    else if(x.resBy)st=`<span class="reserved">Kupuje ${esc(mName(x.resBy))}</span>`;
-    else st=`<button class="btn g" data-a="giftRes" data-id="${x.id}">Kúpim ja</button>`;
+    else if(x.resBy)st=`<span class="reserved" style="color:var(--sec)">Kupuje ${esc(mName(x.resBy))}</span>`;
+    else st=`<button class="btn" data-a="giftRes" data-id="${x.id}">Kúpim ja</button>`;
   }
-  return `<div class="row gift ${x.bought&&!own?'done':''}"><button class="main" style="text-align:left" data-a="giftEdit" data-id="${x.id}"><div class="t">${esc(x.text)}</div><div class="s">${x.secret?'💡 Tajný nápad od '+esc(mName(x.by))+' · ':''}${x.price?esc(eur(x.price))+' · ':''}${esc(x.occ||'')}${x.note?' · '+esc(x.note):''}</div></button>${u?`<a href="${esc(u)}" target="_blank" rel="noopener" class="pill blue">🔗</a>`:''}${st}</div>`;
+  return `<div class="row gift ${x.bought&&!own?'done':''}"><button class="main" style="text-align:left" data-a="giftEdit" data-id="${x.id}"><div class="t">${showFor?mTag(x.for,1)+' ':''}${esc(x.text)}</div><div class="s">${!own&&x.resBy===me&&!x.bought&&!showFor?'<b style="color:var(--green)">Kupujem ja</b> · ':''}${x.secret?'💡 Tajný nápad od '+esc(mName(x.by))+' · ':''}${x.price?esc(eur(x.price))+' · ':''}${esc(x.occ||'')}${x.note?' · '+esc(x.note):''}</div></button>${u?`<a href="${esc(u)}" target="_blank" rel="noopener" class="pill blue">🔗</a>`:''}${st}</div>`;
 }
 function myWishes(){const g=L('gifts').filter(x=>x.for===me&&!x.secret);const v=g.filter(x=>(x.occ||'')==='Vianoce');return v.length?v:g}
 function wishLetter(){const w=myWishes();return 'Milý Ježiško,\n\ntento rok som sa veľmi snažil(a) a želám si:\n'+w.map(x=>'– '+x.text).join('\n')+'\n\nĎakujem a teším sa na Vianoce!\n'+mName(me)}
@@ -868,7 +873,7 @@ const A={
   memNew:()=>memForm(),memEdit:e=>memForm(mem(e.dataset.id)),
   switchUser:()=>{me='';localStorage.removeItem('dm_me');render()},
   // nákup
-  shopAdd:()=>{const i=$('#shopIn');shopAdd(i.value);i.value='';setTimeout(()=>{const x=$('#shopIn');if(x)x.focus()},30)},
+  shopAdd:()=>{const i=$('#shopIn');const v=i.value;i.value='';shopAdd(v);setTimeout(()=>{const x=$('#shopIn');if(x)x.focus()},30)},
   shopCat:e=>{S.shopCat=e.dataset.v;render()},
   shopSug:e=>shopAdd(e.dataset.v),
   shopToggle:e=>{const i=L('shopping').find(x=>x.id===e.dataset.id);if(i)put('shopping',{...i,done:!i.done,doneAt:Date.now(),doneBy:me})},
@@ -923,9 +928,14 @@ const A={
   // darčeky
   giftNew:()=>giftForm({for:me,by:me,secret:false,occ:'Vianoce'}),
   giftIdea:e=>giftForm({for:e.dataset.id,by:me,secret:true,occ:'Vianoce'}),
-  giftEdit:e=>{const g=L('gifts').find(x=>x.id===e.dataset.id);if(g)giftForm(g)},
-  giftRes:e=>{const g=L('gifts').find(x=>x.id===e.dataset.id);if(g){if(g.resBy&&g.resBy!==me){toast('Už to kupuje '+mName(g.resBy));return}put('gifts',{...g,resBy:me});toast('Rezervované pre teba 🎁')}},
-  giftBought:e=>{const g=L('gifts').find(x=>x.id===e.dataset.id);if(g)put('gifts',{...g,bought:true,resBy:me})},
+  giftEdit:e=>{const g=L('gifts').find(x=>x.id===e.dataset.id);if(!g)return;
+    if(g.for!==me&&g.by!==me){const u=safeUrl(g.link);
+      openSheet('Želanie – '+mName(g.for),`<div class="card"><div style="font-size:22px;font-weight:600">${esc(g.text)}</div><div class="muted" style="margin-top:6px">${[g.occ,g.price?eur(g.price):'',g.note].filter(Boolean).map(esc).join(' · ')}</div>${u?`<a class="btn g" style="display:inline-block;margin-top:12px" href="${esc(u)}" target="_blank" rel="noopener">🔗 Otvoriť v e-shope</a>`:''}</div>
+      <div style="margin-top:16px">${g.bought?'<div class="card reserved" style="text-align:center">✓ Už kúpené'+(g.resBy?' ('+esc(mName(g.resBy))+')':'')+'</div>':g.resBy===me?`<button class="btn big green" data-a="giftBought" data-id="${g.id}">Kúpené ✓</button><div style="margin-top:10px"><button class="btn big g" data-a="giftUnres" data-id="${g.id}">Zrušiť – nekúpim</button></div>`:g.resBy?`<div class="card" style="text-align:center">Toto už kupuje <b>${esc(mName(g.resBy))}</b>.</div>`:`<button class="btn big" data-a="giftRes" data-id="${g.id}">Kúpim ja 🎁</button>`}</div>`);return}
+    giftForm(g)},
+  giftQuick:()=>{const i=$('#giftIn');const t=i.value.trim();if(!t)return;i.value='';put('gifts',{for:me,by:me,secret:false,occ:'Vianoce',text:t});i.value='';toast('Pridané do želaní 🎁');setTimeout(()=>{const x=$('#giftIn');if(x){x.value='';x.focus()}},30)},
+  giftRes:e=>{const g=L('gifts').find(x=>x.id===e.dataset.id);if(g){if(g.resBy&&g.resBy!==me){toast('Už to kupuje '+mName(g.resBy));return}put('gifts',{...g,resBy:me});closeSheet();toast('Kupuješ ty 🎁 – ostatní to už vidia')}},
+  giftBought:e=>{const g=L('gifts').find(x=>x.id===e.dataset.id);if(g){put('gifts',{...g,bought:true,resBy:me});closeSheet();toast('Kúpené ✓')}},
   // Ježiško
   letterNew:(e,pre)=>openSheet('List Ježiškovi',`<textarea class="paper" id="l_text" placeholder="Milý Ježiško,&#10;&#10;tento rok som bol(a) veľmi dobrý(á) a želám si…" autofocus>${esc(pre||'')}</textarea>${myWishes().length?'<div style="margin-top:10px"><button class="btn g" data-a="letterInsWishes">🎁 Vložiť moje želania zo zoznamu</button></div>':''}`,{save:()=>{const t=$('#l_text').value.trim();if(!t){toast('Napíš list');return}put('letters',{from:me,text:t,ts:Date.now(),read:false,reply:''});closeSheet();santaFly();setTimeout(()=>toast('List letí k Ježiškovi! ✨'),600)},saveLabel:'Odoslať ✉️'}),
   letterFromWishes:()=>A.letterNew(null,wishLetter()),
@@ -982,6 +992,7 @@ document.addEventListener('click',e=>{
 $('#ov').addEventListener('click',closeSheet);
 document.addEventListener('keydown',e=>{
   if(e.key==='Enter'&&e.target.id==='shopIn'){e.preventDefault();A.shopAdd()}
+  if(e.key==='Enter'&&e.target.id==='giftIn'){e.preventDefault();A.giftQuick()}
   if(e.key==='Enter'&&e.target.id==='w_name'){A.welcome()}
 });
 document.addEventListener('change',e=>{
