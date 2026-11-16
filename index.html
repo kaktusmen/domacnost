@@ -177,6 +177,7 @@ textarea.paper{width:100%;min-height:260px;border:0;outline:none;background:#fff
 <div id="sh"></div>
 <div id="toast"></div>
 <script>
+const APP_VERSION='2026-11-16.2';
 /* ============ Pomocné funkcie ============ */
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -831,7 +832,8 @@ function vSettings(){
   }
   h+=`<div class="sect">Záloha</div><div class="grp"><button class="row chev" data-a="exportJ"><div class="ic" style="background:var(--blue)">⬇️</div><div class="main"><div class="t">Stiahnuť zálohu (JSON)</div></div></button>
   <label class="row chev tap"><div class="ic" style="background:var(--orange)">⬆️</div><div class="main"><div class="t">Obnoviť zo zálohy</div></div><input type="file" id="impFile" accept=".json,application/json" style="display:none"></label></div>`;
-  h+=`<div class="sect">Inštalácia na iPhone</div><div class="card small">V Safari klikni na <b>Zdieľať</b> ⬆️ → <b>Pridať na plochu</b>. Apka sa potom otvára ako samostatná aplikácia.</div>`;
+  h+=`<div class="sect">Verzia apky</div><div class="grp"><div class="row"><div class="main"><div class="t">${APP_VERSION}</div><div class="s">Nové verzie sa načítajú samy po otvorení apky.</div></div><button class="btn g" data-a="forceUpdate">Obnoviť</button></div></div>
+  <div class="sect">Inštalácia na iPhone</div><div class="card small">V Safari klikni na <b>Zdieľať</b> ⬆️ → <b>Pridať na plochu</b>. Apka sa potom otvára ako samostatná aplikácia.</div>`;
   return h;
 }
 
@@ -862,6 +864,7 @@ const A={
   seg:e=>{S.seg[e.dataset.g]=e.dataset.v;render()},
   goSettings:e=>{if(!L('members').length){const n=prompt('Najprv zadaj svoje meno:');if(!n)return;const m=put('members',{name:n.trim(),emoji:'',color:COLORS[0][0]},true);me=m.id;localStorage.setItem('dm_me',me)}S.tab='more';S.sub='settings';render()},
   joinPaste:joinByPaste,
+  forceUpdate:()=>location.replace(location.pathname+'?v='+Date.now()),
   reload:()=>location.reload(),
   joinOther:()=>{localStorage.removeItem('dm_fb');const t=prompt('Napíš kód rodiny (napr. rodina-k3j9x2ab):');const c=t&&decodeInvite(t);if(c)localStorage.setItem('dm_fb',JSON.stringify(c));else if(t)alert('Kód som nerozpoznal.');location.reload()},
   firstMember:()=>{S.forceWelcome=true;render()},
@@ -1005,6 +1008,19 @@ document.addEventListener('change',e=>{
 checkJoin();
 render();
 startSync();
+/* automatická aktualizácia – zistí novú verziu na GitHube a načíta ju */
+let lastVerCheck=0;
+async function checkVersion(){
+  if(!/^https?:/.test(location.protocol)||Date.now()-lastVerCheck<60000)return;lastVerCheck=Date.now();
+  try{const t=await (await fetch(location.origin+location.pathname+'?nocache='+Date.now(),{cache:'no-store'})).text();
+    const m=t.match(/APP_VERSION='([^']+)'/);if(!m||m[1]===APP_VERSION)return;
+    if(sessionStorage.getItem('dm_tried')===m[1])return;sessionStorage.setItem('dm_tried',m[1]);
+    if($('#sh').classList.contains('on')||['INPUT','TEXTAREA'].includes(document.activeElement.tagName)){toast('Je dostupná nová verzia – načíta sa pri ďalšom otvorení');sessionStorage.removeItem('dm_tried');return}
+    toast('Načítavam novú verziu…');setTimeout(()=>location.replace(location.pathname+'?v='+encodeURIComponent(m[1])),700);
+  }catch(e){}
+}
+setTimeout(checkVersion,2500);
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkVersion()});
 setInterval(()=>{if(!$('#sh').classList.contains('on')&&document.activeElement.tagName!=='INPUT'&&document.activeElement.tagName!=='TEXTAREA')render()},60000);
 </script>
 </body>
