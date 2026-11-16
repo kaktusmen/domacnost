@@ -51,7 +51,7 @@ input,select,textarea{font:inherit;color:var(--text)}
 .pill.green{background:rgba(52,199,89,.15);color:var(--green)}.pill.blue{background:rgba(0,122,255,.13);color:var(--blue)}
 .btn{background:var(--blue);color:#fff;border-radius:10px;padding:8px 14px;font-size:15px;font-weight:600;white-space:nowrap}
 .btn.g{background:var(--fill);color:var(--blue)}.btn.green{background:var(--green)}.btn.red{background:var(--red)}
-.btn.big{display:block;width:100%;padding:14px;font-size:17px;border-radius:12px;text-align:center}
+.btn.big{display:block;width:100%;padding:14px;font-size:17px;border-radius:12px;text-align:center;white-space:normal}
 .btn:active{opacity:.7}
 .seg{display:flex;background:var(--fill);border-radius:9px;padding:2px;margin:4px 0 6px}
 .seg button{flex:1;padding:6px 4px;border-radius:7px;font-size:14px;font-weight:500}
@@ -327,7 +327,7 @@ function agenda(from,to){
     [[y+'-12-06','🎅','Mikuláš'],[y+'-12-24','🎄','Štedrý deň'],[y+'-12-31','🎆','Silvester']].forEach(([d,ic,t])=>{if(inR(d))out.push({d,t:'',ic,title:t,k:'hol',c:'#34c759'})});
   }
   L('bills').filter(b=>!b.paid).forEach(b=>{if(inR(b.due))out.push({d:b.due,t:'',ic:'💶',title:b.name+' – '+eur(b.amount),k:'bill',c:'#ff9500',id:b.id})});
-  L('maint').forEach(m=>{const n=maintNext(m);if(inR(n))out.push({d:n,t:'',ic:'🔧',title:m.name,k:'maint',c:'#8e8e93',id:m.id})});
+  L('maint').forEach(m=>{const n=maintNext(m);if(inR(n))out.push({d:n,t:'',ic:m.car?'🚗':'🔧',title:m.name+(m.car&&carName(m.car)?' – '+carName(m.car).replace(/^\S+ /,''):''),k:'maint',c:'#8e8e93',id:m.id})});
   L('tasks').filter(t=>!t.done).forEach(t=>{if(inR(t.due))out.push({d:t.due,t:'',ic:'✅',title:t.title,sub:t.who?mName(t.who):'',k:'task',c:'#af52de',id:t.id})});
   visibleNotes().filter(n=>n.date).forEach(n=>{if(inR(n.date))out.push({d:n.date,t:'',ic:'💬',title:n.text.slice(0,60),sub:'Odkaz od '+mName(n.from),k:'note',c:'#30b0c7',id:n.id})});
   return out.sort((a,b)=>(a.d+a.t).localeCompare(b.d+b.t));
@@ -681,14 +681,21 @@ function payBill(b){
 
 /* ---------- Údržba ---------- */
 const MCATS=['Kúrenie / TČ','FVE','Elektro','Dom','Auto','Záhrada','Poistenie','Doklady','Iné'];
-const PRESETS=[['Servis tepelného čerpadla Daikin','Kúrenie / TČ',12],['Čistenie filtra vody (TČ)','Kúrenie / TČ',6],['Kontrola tlaku v systéme kúrenia','Kúrenie / TČ',6],['Kontrola a čistenie FVE panelov','FVE',12],['Kontrola striedača a batérie FVE','FVE',12],['Revízia elektroinštalácie a bleskozvodu','Elektro',60],['Výmena batérií v detektoroch dymu','Dom',12],['Čistenie odkvapov','Dom',12],['Kontrola komína','Dom',12],['STK a emisná kontrola','Auto',24],['Prezutie pneumatík','Auto',6],['Servis auta / olej','Auto',12],['PZP poistenie auta','Poistenie',12],['Poistenie domu a domácnosti','Poistenie',12],['Diaľničná známka','Auto',12],['Platnosť občianskeho preukazu / pasu','Doklady',0]];
+const PRESETS=[['Servis tepelného čerpadla Daikin','Kúrenie / TČ',12],['Čistenie filtra vody (TČ)','Kúrenie / TČ',6],['Kontrola tlaku v systéme kúrenia','Kúrenie / TČ',6],['Kontrola a čistenie FVE panelov','FVE',12],['Kontrola striedača a batérie FVE','FVE',12],['Revízia elektroinštalácie a bleskozvodu','Elektro',60],['Výmena batérií v detektoroch dymu','Dom',12],['Čistenie odkvapov','Dom',12],['Kontrola komína','Dom',12],['STK a emisná kontrola','Auto',24,1],['Prezutie pneumatík','Auto',6,1],['Servis auta / olej','Auto',12,1],['PZP poistenie','Auto',12,1],['Havarijné poistenie (kasko)','Auto',12,1],['Diaľničná známka','Auto',12,1],['Poistenie domu a domácnosti','Poistenie',12],['Platnosť občianskeho preukazu / pasu','Doklady',0]];
+const cars=()=>meta().cars||[];
+const carName=id=>{const c=cars().find(x=>x.id===id);return c?(c.emoji||'🚗')+' '+c.name+(c.spz?' ('+c.spz+')':''):''};
 function maintRow(m){
   const n=maintNext(m),d=n?daysTo(n):null;const cls=d==null?'':d<0?'red':d<=30?'orange':'green';
-  return `<div class="row"><button class="main" style="text-align:left" data-a="maintEdit" data-id="${m.id}"><div class="t">${esc(m.name)}</div><div class="s">${esc(m.cat||'')}${m.last?' · naposledy '+esc(fmtD(m.last)):''}${num(m.interval)?' · každých '+num(m.interval)+' mes.':''}</div></button><span class="pill ${cls}">${n?(d<0?'po termíne':d===0?'dnes':d<=60?'o '+d+' d':esc(fmtD(n))):'bez termínu'}</span>${num(m.interval)?`<button class="btn g" data-a="maintDone" data-id="${m.id}">✓</button>`:''}</div>`;
+  return `<div class="row"><button class="main" style="text-align:left" data-a="maintEdit" data-id="${m.id}"><div class="t">${esc(m.name)}</div><div class="s">${[m.car&&carName(m.car)?(S.maintF===m.car?'':'<b style="color:var(--text);font-weight:500">'+esc(carName(m.car))+'</b>'):esc(m.cat||''),m.last?'naposledy '+esc(fmtD(m.last)):'',num(m.interval)?'každých '+num(m.interval)+' mes.':''].filter(Boolean).join(' · ')}</div></button><span class="pill ${cls}">${n?(d<0?'po termíne':d===0?'dnes':d<=60?'o '+d+' d':esc(fmtD(n))):'bez termínu'}</span>${num(m.interval)?`<button class="btn g" data-a="maintDone" data-id="${m.id}">✓</button>`:''}</div>`;
 }
 function vMaint(){
   let h=backHdr('Údržba a revízie',plus('maintNew'));
-  const ms=L('maint').slice().sort((a,b)=>(maintNext(a)||'9999').localeCompare(maintNext(b)||'9999'));
+  const cs=cars();const f=S.maintF||'all';
+  let ms=L('maint').slice().sort((a,b)=>(maintNext(a)||'9999').localeCompare(maintNext(b)||'9999'));
+  if(f==='home')ms=ms.filter(m=>!m.car);else if(f!=='all')ms=ms.filter(m=>m.car===f);
+  h+=`<div class="chips scroll"><button class="chip ${f==='all'?'on':''}" data-a="maintF" data-v="all">Všetko</button><button class="chip ${f==='home'?'on':''}" data-a="maintF" data-v="home">🏠 Dom</button>${cs.map(c=>`<button class="chip ${f===c.id?'on':''}" data-a="maintF" data-v="${c.id}">${esc((c.emoji||'🚗')+' '+c.name)}</button>`).join('')}<button class="chip" data-a="carsEdit">${cs.length?'✏️ Autá':'＋ Pridať autá'}</button></div>`;
+  if(f!=='all'&&f!=='home'){const c=cs.find(x=>x.id===f);if(c)h+=`<div class="card small" style="margin-top:6px">${esc((c.emoji||'🚗')+' '+c.name)}${c.spz?' · ŠPZ <b>'+esc(c.spz)+'</b>':''}${c.vin?' · VIN '+esc(c.vin):''}${c.note?'<br>'+esc(c.note):''}</div>`}
+  if(!ms.length)h+=`<div class="card empty" style="margin-top:10px">Zatiaľ tu nič nie je.</div>`;
   h+=`<p class="hint">Stlač ✓ keď je úkon hotový – ďalší termín sa vypočíta sám. Termíny sa ukážu aj v kalendári a na Domove 30 dní vopred.</p>`;
   const groups=[['Po termíne',ms.filter(m=>{const n=maintNext(m);return n&&daysTo(n)<0})],['Do 60 dní',ms.filter(m=>{const n=maintNext(m);return n&&daysTo(n)>=0&&daysTo(n)<=60})],['Neskôr',ms.filter(m=>{const n=maintNext(m);return !n||daysTo(n)>60})]];
   groups.forEach(([n,a])=>{if(a.length)h+=`<div class="sect">${n}</div><div class="grp">${a.map(maintRow).join('')}</div>`});
@@ -696,9 +703,9 @@ function vMaint(){
   return h;
 }
 function maintForm(m){
-  m=m||{cat:'Kúrenie / TČ',interval:12};
+  m=m||{cat:S.maintF&&S.maintF!=='all'&&S.maintF!=='home'?'Auto':'Kúrenie / TČ',interval:12,car:S.maintF&&S.maintF!=='all'&&S.maintF!=='home'?S.maintF:''};
   const hist=(m.hist||[]).slice().reverse().map(x=>`<div class="row"><div class="main"><div class="t">${esc(fmtD(x.d))}</div></div><div class="r">${esc(mName(x.by))}</div></div>`).join('');
-  form(m.id?'Údržba':'Nová položka údržby',[[{k:'name',l:'Názov',ph:'napr. Servis TČ',req:1,af:!m.id},{k:'cat',l:'Kategória',t:'sel',o:MCATS}],[{k:'last',l:'Naposledy',t:'date'},{k:'interval',l:'Interval (mes.)',t:'num',ph:'12'},{k:'next',l:'Alebo pevný termín',t:'date'}],[{k:'contact',l:'Servis / kontakt',ph:'firma, telefón'},{k:'note',l:'Poznámka',t:'area',rows:2}]],m,
+  form(m.id?'Údržba':'Nová položka údržby',[[{k:'name',l:'Názov',ph:'napr. Servis TČ',req:1,af:!m.id},{k:'cat',l:'Kategória',t:'sel',o:MCATS},...(cars().length?[{k:'car',l:'Auto',t:'sel',o:[['','— (nie je auto)']].concat(cars().map(c=>[c.id,(c.emoji||'🚗')+' '+c.name]))}]:[])],[{k:'last',l:'Naposledy',t:'date'},{k:'interval',l:'Interval (mes.)',t:'num',ph:'12'},{k:'next',l:'Alebo pevný termín',t:'date'}],[{k:'contact',l:'Servis / kontakt',ph:'firma, telefón'},{k:'note',l:'Poznámka',t:'area',rows:2}]],m,
   o=>{put('maint',o);toast('Uložené')},m.id?()=>del('maint',m.id):null,
   `<p class="hint">Ak zadáš „Naposledy“ a interval, ďalší termín sa vypočíta automaticky. Pevný termín použi napr. pre platnosť dokladov.</p>${hist?`<div class="sect">História</div><div class="grp">${hist}</div>`:''}`);
 }
@@ -892,9 +899,20 @@ const A={
   maintNew:()=>maintForm(),maintEdit:e=>maintForm(L('maint').find(x=>x.id===e.dataset.id)),
   maintDone:e=>{const m=L('maint').find(x=>x.id===e.dataset.id);if(!m)return;const d=prompt('Kedy bolo hotové? (d. m. rrrr)',fmtD(today()));if(d==null)return;const p=d.match(/(\d{1,2})\.\s*(\d{1,2})\.\s*(\d{4})/);const dd=p?p[3]+'-'+pad(p[2])+'-'+pad(p[1]):today();
     const n={...m,last:dd,next:'',hist:[...(m.hist||[]),{d:dd,by:me}]};put('maint',n);toast('Ďalší termín: '+fmtD(maintNext(n)))},
-  maintPresets:()=>{const have=new Set(L('maint').map(m=>m.name));
-    openSheet('Typické položky',`<p class="hint" style="margin:0 0 10px">Vyber, čo chceš sledovať. Dátum poslednej kontroly doplníš potom.</p><div class="grp">${PRESETS.map((p,i)=>`<label class="frow"><span style="min-width:0;flex:1">${esc(p[0])}<br><small class="muted">${esc(p[1])}${p[2]?' · každých '+p[2]+' mes.':''}</small></span><input type="checkbox" class="sw pr" data-i="${i}" ${have.has(p[0])?'disabled checked':''}></label>`).join('')}</div>`,
-    {save:()=>{let n=0;document.querySelectorAll('.sw.pr:checked:not(:disabled)').forEach(c=>{const p=PRESETS[c.dataset.i];put('maint',{name:p[0],cat:p[1],interval:p[2]||'',last:'',next:p[2]?addMonths(today(),1):''},true);n++});closeSheet();render();if(n)toast('Pridané: '+n+' – doplň dátumy')},saveLabel:'Pridať'})},
+  maintPresets:()=>{const have=new Set(L('maint').filter(m=>!m.car).map(m=>m.name));const cs=cars();
+    const row=(p,i)=>`<label class="frow"><span style="min-width:0;flex:1">${esc(p[0])}<br><small class="muted">${esc(p[1])}${p[2]?' · každých '+p[2]+' mes.':''}</small></span><input type="checkbox" class="sw pr" data-i="${i}" ${!p[3]&&have.has(p[0])?'disabled checked':''}></label>`;
+    const carSel=cs.length?`<label class="frow"><span>Pre auto</span><select id="prCar">${cs.length>1?'<option value="*">Všetky autá</option>':''}${cs.map(c=>`<option value="${c.id}">${esc((c.emoji||'🚗')+' '+c.name)}</option>`).join('')}</select></label>`:`<div class="row"><div class="main"><div class="s">Tip: najprv si pridaj autá (Údržba → ＋ Pridať autá), aby sa položky priradili ku konkrétnemu autu.</div></div></div>`;
+    openSheet('Typické položky',`<p class="hint" style="margin:0 0 10px">Vyber, čo chceš sledovať. Dátum poslednej kontroly doplníš potom.</p><div class="sect" style="margin-top:0">Dom</div><div class="grp">${PRESETS.map((p,i)=>p[3]?'':row(p,i)).join('')}</div><div class="sect">Auto</div><div class="grp">${carSel}${PRESETS.map((p,i)=>p[3]?row(p,i):'').join('')}</div>`,
+    {save:()=>{let n=0;const sel=$('#prCar')?$('#prCar').value:'';const targets=sel==='*'?cs.map(c=>c.id):[sel];
+      document.querySelectorAll('.sw.pr:checked:not(:disabled)').forEach(c=>{const p=PRESETS[c.dataset.i];
+        (p[3]?targets:['']).forEach(car=>{if(L('maint').some(m=>m.name===p[0]&&(m.car||'')===(car||'')))return;put('maint',{name:p[0],cat:p[1],interval:p[2]||'',last:'',next:p[2]?addMonths(today(),1):'',car:car||''},true);n++})});
+      closeSheet();render();toast(n?'Pridané: '+n+' – doplň dátumy':'Nič nové nepribudlo')},saveLabel:'Pridať'})},
+  maintF:e=>{S.maintF=e.dataset.v;render()},
+  carsEdit:()=>{const cs=cars();openSheet('Autá',`<div class="grp">${cs.map(c=>`<button class="row chev" data-a="carEdit" data-id="${c.id}"><div class="ic" style="background:var(--fill);color:var(--text)">${esc(c.emoji||'🚗')}</div><div class="main"><div class="t">${esc(c.name)}</div><div class="s">${esc(c.spz||'')}${c.who?' · '+esc(mName(c.who)):''}</div></div></button>`).join('')}<button class="row" data-a="carEdit"><div class="ic" style="background:var(--green)">＋</div><div class="main"><div class="t" style="color:var(--blue)">Pridať auto</div></div></button></div><p class="hint">Každému autu potom priradíš STK, PZP, servis, prezutie či diaľničnú známku. V Údržbe ich vyfiltruješ podľa auta.</p>`)},
+  carEdit:e=>{const cs=cars();const c=cs.find(x=>x.id===e.dataset.id)||{emoji:'🚗'};
+    form(c.id?c.name:'Nové auto',[[{k:'name',l:'Názov',ph:'napr. Škoda Octavia',req:1,af:!c.id},{k:'spz',l:'ŠPZ',ph:'TO-123AB'},{k:'emoji',l:'Ikona',t:'sel',o:['🚗','🚙','🚐','🛻','🏎️','🚘','🏍️']},{k:'who',l:'Kto ním jazdí',t:'mem',any:'Rodina'}],[{k:'vin',l:'VIN',ph:'nepovinné'},{k:'note',l:'Poznámka',t:'area',rows:2,ph:'pneumatiky, olej, poisťovňa…'}]],c,
+    o=>{if(!o.id)o.id=uid();const list=cars().filter(x=>x.id!==o.id).concat([o]);put('meta',{...meta(),cars:list});setTimeout(A.carsEdit,350)},
+    c.id?()=>{if(L('maint').some(m=>m.car===c.id)&&!confirm('Položky údržby tohto auta zostanú, len bez priradenia. Pokračovať?'))return;put('meta',{...meta(),cars:cars().filter(x=>x.id!==c.id)});L('maint').filter(m=>m.car===c.id).forEach(m=>put('maint',{...m,car:''},true));if(S.maintF===c.id)S.maintF='all';render()}:null)},
   // energie
   enNew:()=>enForm(),enEdit:e=>enForm(L('energy').find(x=>x.id===e.dataset.id)),
   enYear:e=>{S.enYear=Number(e.dataset.v);render()},
