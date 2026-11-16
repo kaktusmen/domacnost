@@ -211,7 +211,7 @@ let me=localStorage.getItem('dm_me')||'';
 const S={tab:'home',sub:null,seg:{cal:'cal',gift:'mine',task:'mine'},calMonth:today().slice(0,7),calDay:today(),shopCat:'Potraviny',showDone:{},enYear:new Date().getFullYear()};
 const mem=id=>L('members').find(m=>m.id===id);
 const mName=id=>mem(id)?.name||'?';
-const mTag=(id,sm)=>{const m=mem(id);return m?`<span class="av${sm?' sm':''}" style="background:${m.color||'#8e8e93'}" title="${esc(m.name)}">${esc(m.emoji||m.name[0])}</span>`:''};
+const mTag=(id,sm)=>{const m=mem(id);if(!m)return'';if(m.photo&&/^data:image\//.test(m.photo))return `<img class="av${sm?' sm':''}" src="${m.photo}" alt="${esc(m.name)}" title="${esc(m.name)}" style="object-fit:cover;background:${m.color||'#8e8e93'}">`;return `<span class="av${sm?' sm':''}" style="background:${m.color||'#8e8e93'}" title="${esc(m.name)}">${esc(m.emoji||m.name[0])}</span>`};
 const meta=()=>L('meta').find(x=>x.id==='settings')||{id:'settings'};
 const isKid=()=>!!mem(me)?.kid;
 const COLORS=[['#007aff','Modrá'],['#34c759','Zelená'],['#ff9500','Oranžová'],['#ff2d55','Ružová'],['#af52de','Fialová'],['#ff3b30','Červená'],['#30b0c7','Tyrkysová'],['#a2845e','Hnedá'],['#5856d6','Indigo']];
@@ -745,10 +745,27 @@ function vMembers(){
 }
 function memForm(m){
   m=m||{color:COLORS[L('members').length%COLORS.length][0]};
-  form(m.id?m.name:'Nový člen',[[{k:'name',l:'Meno',req:1,af:!m.id},{k:'emoji',l:'Emoji',ph:'👩 👨 👧 👦 👵 🐶'},{k:'color',l:'Farba',t:'sel',o:COLORS}],[{k:'bday',l:'Narodeniny',t:'date'},{k:'nameday',l:'Meniny',t:'date'},{k:'phone',l:'Telefón',t:'tel'}],[{k:'kid',l:'Dieťa',t:'check'}]],m,
-  o=>{const n=put('members',o,true);if(!me||!mem(me)){me=n.id;localStorage.setItem('dm_me',me)}render();toast('Uložené')},m.id&&m.id!==me?()=>del('members',m.id):null,
-  `<p class="hint">Dieťa nevidí financie, údržbu a energie a v Ježiškovej pošte vidí iba svoje listy.</p>${m.id&&m.id!==me?`<div style="margin-top:14px"><button class="btn big g" data-a="memMe" data-id="${m.id}">Toto som ja (na tomto zariadení)</button></div>`:''}`);
+  avatarDraft=m.photo||'';
+  const avBox=`<div class="fblk" style="display:flex;align-items:center;gap:14px"><div id="avPrev">${avPrevHtml(m)}</div><div style="flex:1"><div class="flab" style="margin:0 0 6px">Fotka / avatar</div><div style="display:flex;gap:8px;flex-wrap:wrap"><label class="btn g" style="cursor:pointer">Vybrať fotku<input type="file" accept="image/*" id="avFile" style="display:none"></label><button type="button" class="btn g" data-a="avPaste">Vložiť</button><button type="button" class="btn g" data-a="avClear" style="color:var(--red)">Zrušiť</button></div></div></div>`;
+  form(m.id?m.name:'Nový člen',[[{k:'name',l:'Meno',req:1,af:!m.id},{k:'av',t:'html',h:avBox},{k:'emoji',l:'Emoji',ph:'👩 👨 👧 👦 👵 🐶'},{k:'color',l:'Farba',t:'sel',o:COLORS}],[{k:'bday',l:'Narodeniny',t:'date'},{k:'nameday',l:'Meniny',t:'date'},{k:'phone',l:'Telefón',t:'tel'}],[{k:'kid',l:'Dieťa',t:'check'}]],m,
+  o=>{o.photo=avatarDraft||'';const n=put('members',o,true);if(!me||!mem(me)){me=n.id;localStorage.setItem('dm_me',me)}render();toast('Uložené')},m.id&&m.id!==me?()=>del('members',m.id):null,
+  `<p class="hint">Fotku vyber z Fotiek alebo skopíruj obrázok (napr. Memoji) a klikni na Vložiť. Ak fotku nemáš, zobrazí sa emoji alebo prvé písmeno mena.</p><p class="hint">Dieťa nevidí financie, údržbu a energie a v Ježiškovej pošte vidí iba svoje listy.</p>${m.id&&m.id!==me?`<div style="margin-top:14px"><button class="btn big g" data-a="memMe" data-id="${m.id}">Toto som ja (na tomto zariadení)</button></div>`:''}`);
 }
+
+let avatarDraft='';
+function avPrevHtml(m){const c=(m&&m.color)||'#8e8e93';return avatarDraft?`<img src="${avatarDraft}" style="width:64px;height:64px;border-radius:32px;object-fit:cover;background:${c}">`:`<span class="av" style="width:64px;height:64px;border-radius:32px;font-size:32px;background:${c}">${esc((m&&(m.emoji||(m.name||'?')[0]))||'?')}</span>`}
+function setAvatarFromBlob(blob){
+  if(!blob||!/^image\//.test(blob.type)){toast('To nie je obrázok');return}
+  const url=URL.createObjectURL(blob);const img=new Image();
+  img.onload=()=>{const S0=160,c=document.createElement('canvas');c.width=c.height=S0;const x=c.getContext('2d');const s=Math.min(img.width,img.height);
+    x.drawImage(img,(img.width-s)/2,(img.height-s)/2,s,s,0,0,S0,S0);URL.revokeObjectURL(url);
+    let d=c.toDataURL('image/webp',.82);if(!d.startsWith('data:image/webp'))d=c.toDataURL('image/jpeg',.85);
+    if(/png/.test(blob.type)){const d2=c.toDataURL('image/png');if(d2.length<60000&&!d.startsWith('data:image/webp'))d=d2}
+    avatarDraft=d;const pv=$('#avPrev');if(pv)pv.innerHTML=avPrevHtml({color:'#8e8e93'});toast('Fotka pripravená – ulož člena')};
+  img.onerror=()=>{toast('Obrázok sa nepodarilo načítať');URL.revokeObjectURL(url)};img.src=url;
+}
+document.addEventListener('paste',e=>{if(!$('#avPrev')||!$('#sh').classList.contains('on'))return;const f=[...(e.clipboardData?.items||[])].find(i=>i.type.startsWith('image/'));if(f){e.preventDefault();setAvatarFromBlob(f.getAsFile())}});
+document.addEventListener('change',e=>{if(e.target.id==='avFile'&&e.target.files[0])setAvatarFromBlob(e.target.files[0])});
 
 /* ---------- Nastavenia ---------- */
 const RULES=`rules_version = '2';
@@ -904,6 +921,8 @@ function giftForm(g){
   o=>{put('gifts',o);toast('Uložené 🎁')},g.id&&(g.by===me||g.for===me)?()=>del('gifts',g.id):null,
   g.id&&!own&&g.resBy===me&&!g.bought?`<div style="margin-top:14px"><button class="btn big g" data-a="giftUnres" data-id="${g.id}">Zrušiť moju rezerváciu</button></div>`:'');
 }
+A.avClear=()=>{avatarDraft='';const pv=$('#avPrev');if(pv)pv.innerHTML=avPrevHtml({color:'#8e8e93',name:'?'})};
+A.avPaste=async()=>{try{const items=await navigator.clipboard.read();for(const it of items){const t=it.types.find(t=>t.startsWith('image/'));if(t){setAvatarFromBlob(await it.getType(t));return}}toast('V schránke nie je obrázok')}catch(e){toast('Stlač Cmd+V (na iPhone podrž prst → Vložiť)')}};
 A.giftUnres=e=>{const g=L('gifts').find(x=>x.id===e.dataset.id);if(g){put('gifts',{...g,resBy:''});closeSheet()}};
 function copy(t,msg){(navigator.clipboard?navigator.clipboard.writeText(t):Promise.reject()).then(()=>toast(msg)).catch(()=>{prompt('Skopíruj:',t)})}
 
