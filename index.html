@@ -232,19 +232,20 @@ function del(c,id){
 
 /* ============ Synchronizácia (Firebase, zadarmo) ============ */
 const DEFAULT_CFG={apiKey:"AIzaSyAtv66geG7ffuZlFOAbQqyZbEN5L9gug30",authDomain:"domacnost-d9b09.firebaseapp.com",projectId:"domacnost-d9b09",storageBucket:"domacnost-d9b09.firebasestorage.app",messagingSenderId:"852081942371",appId:"1:852081942371:web:2739d9d5fd5772534fbd56"};
-let famRef=null,sync={st:'local',msg:''};
+let famRef=null,sync={st:'local',msg:''},syncStart=Date.now();
 const fbCfg=()=>{try{return JSON.parse(localStorage.getItem('dm_fb')||'null')}catch(e){return null}};
 function loadScript(src){return new Promise((ok,bad)=>{if(document.querySelector('script[src="'+src+'"]'))return ok();const s=document.createElement('script');s.src=src;s.onload=ok;s.onerror=()=>bad(new Error('Nepodarilo sa načítať '+src));document.head.appendChild(s)})}
 function syncErr(e){sync={st:'err',msg:(e&&e.code==='permission-denied')?'Prístup zamietnutý – skontroluj pravidlá Firestore (Rules).':(e&&e.message)||String(e)};render()}
 async function startSync(){
   const c=fbCfg();if(!c||!c.config||!c.fam){sync={st:'local',msg:''};return}
-  sync={st:'wait',msg:'Pripájam…'};render();
+  sync={st:'wait',msg:'Pripájam…'};syncStart=Date.now();render();
   try{
     await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
     await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js');
     const app=firebase.apps.find(a=>a.name==='dom')||firebase.initializeApp(c.config,'dom');
     const db=app.firestore();
     famRef=db.collection('rodiny').doc(c.fam);
+    famRef.set({nazov:c.name||'',pripojene:Date.now()},{merge:true}).catch(()=>{});
     const tomb=JSON.parse(localStorage.getItem('dm_del')||'[]');
     tomb.forEach(([col,id])=>famRef.collection(col).doc(id).delete().catch(()=>{}));
     localStorage.removeItem('dm_del');
@@ -400,7 +401,16 @@ function render(){
   if(act&&act.id&&app.contains(act))keep={id:act.id,v:act.value,s:act.selectionStart};
   const y=scrollY;
   if(joinHint){app.innerHTML=vJoinHint();$('#tabbar').style.display='none';return}
-  if(!L('members').length&&fbCfg()&&sync.st!=='err'){app.innerHTML=`<div class="welcome"><div class="logo">🏡</div><h1>Načítavam rodinu…</h1><p class="muted">Chvíľu strpenia, sťahujem údaje.</p></div>`;$('#tabbar').style.display='none';return}
+  if(!L('members').length&&fbCfg()&&!S.forceWelcome){
+    const c=fbCfg();const slow=Date.now()-syncStart>12000;
+    let h;
+    if(sync.st==='ok')h=`<div class="welcome"><div class="logo">🤔</div><h1>Rodina je zatiaľ prázdna</h1><p class="muted">V rodine s kódom <b>${esc(c.fam)}</b> ešte nie sú žiadni členovia.</p></div>
+      <div class="card small">Najprv musí zariadenie, na ktorom sú zadaní členovia (napr. Mac), kliknúť na <b>Viac → Nastavenia a zdieľanie → Pripojiť a zdieľať</b> a mať zelenú bodku <b>Pripojené</b>. Potom tu klikni na <b>Skúsiť znova</b>.<br><br>Skontroluj aj, či je kód rovnaký ako v Nastaveniach na Macu.</div>`;
+    else if(sync.st==='err'||slow)h=`<div class="welcome"><div class="logo">📡</div><h1>Nedá sa pripojiť</h1><p class="muted">${esc(sync.msg||'Pripojenie trvá príliš dlho. Skontroluj internet.')}</p></div>`;
+    else h=`<div class="welcome"><div class="logo">🏡</div><h1>Načítavam rodinu…</h1><p class="muted">Chvíľu strpenia, sťahujem údaje.</p></div>`;
+    if(sync.st==='ok'||sync.st==='err'||slow)h+=`<div style="margin-top:16px;display:grid;gap:10px"><button class="btn big" data-a="reload">Skúsiť znova</button><button class="btn big g" data-a="joinOther">Zadať iný kód rodiny</button><button class="btn big g" data-a="firstMember">Som prvý – vytvoriť rodinu s týmto kódom</button></div>`;
+    else setTimeout(()=>{if(!L('members').length)render()},12500);
+    app.innerHTML=h;$('#tabbar').style.display='none';return}
   if(!L('members').length){app.innerHTML=vWelcome();$('#tabbar').style.display='none';return}
   if(!me||!mem(me)){app.innerHTML=vWho();$('#tabbar').style.display='none';return}
   $('#tabbar').style.display='';
@@ -747,7 +757,7 @@ function enForm(r){
 /* ---------- Členovia ---------- */
 function vMembers(){
   let h=backHdr('Členovia rodiny',plus('memNew'));
-  h+=`<div class="grp">${L('members').map(m=>`<button class="row chev" data-a="memEdit" data-id="${m.id}">${mTag(m.id)}<div class="main"><div class="t">${esc(m.name)}${m.id===me?' <span class="pill blue">ja</span>':''}${m.kid?' <span class="pill">dieťa</span>':''}</div><div class="s">${m.bday?'🎂 '+esc(fmtD(m.bday)):''}${m.nameday?' · 🌸 meniny '+parse(m.nameday).getDate()+'. '+(parse(m.nameday).getMonth()+1)+'.':''}</div></div></button>`).join('')}</div>`;
+  h+=`<div class="grp">${L('members').map(m=>`<button class="row chev" data-a="memEdit" data-id="${m.id}">${mTag(m.id)}<div class="main"><div class="t">${esc(m.name)}${m.id===me?' <span class="pill blue">ja</span>':''}${m.kid?' <span class="pill">dieťa</span>':''}</div><div class="s">${[m.bday?'🎂 '+esc(fmtD(m.bday)):'',m.nameday?'🌸 meniny '+parse(m.nameday).getDate()+'. '+(parse(m.nameday).getMonth()+1)+'.':''].filter(Boolean).join(' · ')}</div></div></button>`).join('')}</div>`;
   h+=`<p class="hint">Každý člen si na svojom telefóne vyberie, kto je. Narodeniny a meniny sa ukážu v kalendári.</p>`;
   h+=`<div style="margin-top:18px"><button class="btn big g" data-a="switchUser">Prepnúť používateľa na tomto zariadení</button></div>`;
   return h;
@@ -837,6 +847,9 @@ const A={
   seg:e=>{S.seg[e.dataset.g]=e.dataset.v;render()},
   goSettings:e=>{if(!L('members').length){const n=prompt('Najprv zadaj svoje meno:');if(!n)return;const m=put('members',{name:n.trim(),emoji:'',color:COLORS[0][0]},true);me=m.id;localStorage.setItem('dm_me',me)}S.tab='more';S.sub='settings';render()},
   joinPaste:joinByPaste,
+  reload:()=>location.reload(),
+  joinOther:()=>{localStorage.removeItem('dm_fb');const t=prompt('Napíš kód rodiny (napr. rodina-k3j9x2ab):');const c=t&&decodeInvite(t);if(c)localStorage.setItem('dm_fb',JSON.stringify(c));else if(t)alert('Kód som nerozpoznal.');location.reload()},
+  firstMember:()=>{S.forceWelcome=true;render()},
   copyFam:()=>copy(fbCfg().fam,'Kód rodiny skopírovaný'),
   closeSheet:closeSheet,sheetSave:()=>sheetSave&&sheetSave(),sheetDel:()=>sheetDel&&sheetDel(),
   chipT:e=>e.classList.toggle('on'),
