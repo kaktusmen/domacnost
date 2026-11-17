@@ -1,8 +1,9 @@
 {
+ "id": "./?app=domacnost2",
  "name": "Domácnosť",
  "short_name": "Domácnosť",
  "description": "Rodinná apka – nákupy, úlohy, platby, energie, odkazy a darčeky",
- "start_url": "./",
+ "start_url": "./?app=domacnost2",
  "scope": "./",
  "display": "standalone",
  "orientation": "portrait",
