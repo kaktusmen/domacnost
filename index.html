@@ -178,7 +178,7 @@ textarea.paper{width:100%;min-height:260px;border:0;outline:none;background:#fff
 <div id="sh"></div>
 <div id="toast"></div>
 <script>
-const APP_VERSION='2026-11-17.1';
+const APP_VERSION='2026-11-17.2';
 /* ============ Pomocné funkcie ============ */
 const $=s=>document.querySelector(s);
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1021,6 +1021,7 @@ async function checkVersion(){
   }catch(e){}
 }
 setTimeout(checkVersion,2500);
+if('serviceWorker' in navigator&&/^https:/.test(location.protocol))navigator.serviceWorker.register('sw.js').catch(()=>{});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')checkVersion()});
 setInterval(()=>{if(!$('#sh').classList.contains('on')&&document.activeElement.tagName!=='INPUT'&&document.activeElement.tagName!=='TEXTAREA')render()},60000);
 </script>
